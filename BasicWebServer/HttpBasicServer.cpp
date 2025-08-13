@@ -1,32 +1,28 @@
-#include "pch.h"
+#include "StdAfx.h"
 #include "HttpBasicServer.h"
 
 #pragma comment(lib, "Httpapi.lib")
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 #define INITIALIZE_HTTP_RESPONSE( resp, status, reason )    \
-    do                                                      \
-    {                                                       \
-        RtlZeroMemory( (resp), sizeof(*(resp)) );           \
-        (resp)->StatusCode = (status);                      \
-        (resp)->pReason = (reason);                         \
-        (resp)->ReasonLength = (USHORT) strlen(reason);     \
-    } while (FALSE)
+	do                                                      \
+	{                                                       \
+	RtlZeroMemory( (resp), sizeof(*(resp)) );           \
+	(resp)->StatusCode = (status);                      \
+	(resp)->pReason = (reason);                         \
+	(resp)->ReasonLength = (USHORT) strlen(reason);     \
+	} while (FALSE)
 
 #define ADD_KNOWN_HEADER(Response, HeaderId, RawValue)											\
-    do																							\
-    {																							\
-        (Response).Headers.KnownHeaders[(HeaderId)].pRawValue = (RawValue);						\
-        (Response).Headers.KnownHeaders[(HeaderId)].RawValueLength = (USHORT) strlen(RawValue);	\
-    } while(FALSE)
+	do																							\
+	{																							\
+	(Response).Headers.KnownHeaders[(HeaderId)].pRawValue = (RawValue);						\
+	(Response).Headers.KnownHeaders[(HeaderId)].RawValueLength = (USHORT) strlen(RawValue);	\
+	} while(FALSE)
 
 #define ALLOC_MEM(cb) HeapAlloc(GetProcessHeap(), 0, (cb))
 
 #define FREE_MEM(ptr) HeapFree(GetProcessHeap(), 0, (ptr))
-
-///////////////////////////////////////////////////////////
-extern bool g_bTraceRequest = true;
-
 
 ///////////////////////////////////////////////////////////
 CStringW GetIpAddress(const PSOCKADDR pSocketIPAddress)
@@ -39,7 +35,7 @@ CStringW GetIpAddress(const PSOCKADDR pSocketIPAddress)
 	int nValue = (pSocketIPAddress->sa_data[2] & 0xff);
 	strIP.Format(L"%ld", nValue);
 
-	for (int i = 3; i < 6; i++)
+	for ( int i=3; i < 6;i++)
 	{
 		nValue = (pSocketIPAddress->sa_data[i] & 0xff);
 		strIP.AppendFormat(L".%ld", nValue);
@@ -54,45 +50,21 @@ CStringW GetRequestHeader(const PHTTP_REQUEST pHttpRequest)
 		return CStringW("");
 
 	CStringW strResult;
-	for (int i = (int)HttpHeaderCacheControl; i < HttpHeaderRequestMaximum; i++)
+	for ( int i = (int)HttpHeaderCacheControl; i < HttpHeaderRequestMaximum; i++)
 	{
 		HTTP_KNOWN_HEADER& httpHeare = pHttpRequest->Headers.KnownHeaders[i];
 		if (httpHeare.RawValueLength <= 0 || !httpHeare.pRawValue)
 			continue;
 		CStringA strText = (LPCSTR)httpHeare.pRawValue;
-		strResult.AppendFormat(L"\n\t header id %ld: %ws", i, (LPCWSTR)CA2W(strText));
+		strResult.AppendFormat(L"\n\t header id %ld: %ws", i, CA2W(strText));
 	}
 
 	return strResult;
 }
 
-void TraceRequest(const PHTTP_REQUEST pHttpRequest)
+///////////////////////////////////////////////////////////////////////////////////////////
+namespace HttpCore
 {
-	if (!g_bTraceRequest)
-		return;
-
-	if (!pHttpRequest)
-		return;
-
-	CStringW strHttpVerb = L"unknown";
-	if (HttpVerbGET == pHttpRequest->Verb)
-		strHttpVerb = L"GET";
-	else  if (HttpVerbPOST == pHttpRequest->Verb)
-		strHttpVerb = L"POST";
-
-	wprintf(L"\nGot a %ws request for %ws, from IP address %ws, request headers:%ws"
-		, (LPCWSTR)strHttpVerb
-		, pHttpRequest->CookedUrl.pFullUrl
-		, (LPCWSTR)GetIpAddress(pHttpRequest->Address.pRemoteAddress)
-		, (LPCWSTR)GetRequestHeader(pHttpRequest));
-}
-
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-namespace CSoftHttp
-{
-	///////////////////////////////////////////////////////////////////////////////////////////
-	// class CHttpBasicServer
 	CHttpBasicServer::CHttpBasicServer(CString strIPAddress, int nPort)
 		: m_strIPAddress(strIPAddress)
 		, m_nPort(nPort)
@@ -101,31 +73,27 @@ namespace CSoftHttp
 	{
 	}
 
+	CHttpBasicServer::~CHttpBasicServer(void)
+	{
+	}
+
 	bool CHttpBasicServer::Init()
 	{
-		HTTPAPI_VERSION HttpApiVersion = HTTPAPI_VERSION_1;
+		HTTPAPI_VERSION HttpApiVersion = HTTPAPI_VERSION_2;
 
 		//
 		// Initialize HTTP Server APIs
-		//
-		int retCode = HttpInitialize(HttpApiVersion, 
-			HTTP_INITIALIZE_SERVER,    // Flags
-			NULL                       // Reserved
-		);
+		int retCode = HttpInitialize(HttpApiVersion, HTTP_INITIALIZE_SERVER, NULL );
 
 		if (retCode != NO_ERROR)
 		{
 			wprintf(L"HttpInitialize failed with %lu \n", retCode);
-			return retCode;
+			return false;
 		}
 
 		//
 		// Create a Request Queue Handle
-		//
-		retCode = HttpCreateHttpHandle(
-			&m_hReqQueue,      // Req Queue
-			0                  // Reserved
-		);
+		retCode = HttpCreateHttpHandle(&m_hReqQueue, 0);
 
 		if (retCode != NO_ERROR)
 		{
@@ -133,7 +101,7 @@ namespace CSoftHttp
 			CleanUp();
 		}
 
-		CStringW strUriPort = GetURI();
+		CStringW strUriPort = GetFullyQualifiedURL();
 		//
 		// The command line arguments represent URIs that to 
 		// listen on. Call HttpAddUrl for each URI.
@@ -142,13 +110,11 @@ namespace CSoftHttp
 		// terminating (/) character.
 		//
 
-		wprintf(L"listening for requests on the following url: %s\n", (LPCWSTR)strUriPort);
+		wprintf(L"listening for requests on the following URL: %s\n", (LPCWSTR)strUriPort);
 
-		retCode = HttpAddUrl(
-			m_hReqQueue,   // Req Queue
-			strUriPort,    // Fully qualified URL
+		retCode = HttpAddUrl(m_hReqQueue, strUriPort,    // Fully qualified URL
 			NULL           // Reserved
-		);
+			);
 
 		if (retCode != NO_ERROR)
 		{
@@ -168,7 +134,9 @@ namespace CSoftHttp
 
 	bool CHttpBasicServer::Run()
 	{
-		if (DoReceiveRequests() != 0)
+		DWORD dwResult = DoReceiveRequests();
+
+		if (dwResult != 0)
 		{
 			return false;
 		}
@@ -178,7 +146,7 @@ namespace CSoftHttp
 
 	bool CHttpBasicServer::CleanUp()
 	{
-		CStringW strUri = GetURI();
+		CStringW strUri = GetFullyQualifiedURL();
 
 		//
 		// Call HttpRemoveUrl for all added URLs.
@@ -201,7 +169,7 @@ namespace CSoftHttp
 		return true;
 	}
 
-	CStringW CHttpBasicServer::GetURI()
+	CStringW CHttpBasicServer::GetFullyQualifiedURL()
 	{
 		CStringW strIP = m_strIPAddress;
 
@@ -256,7 +224,7 @@ namespace CSoftHttp
 				RequestBufferLength,// req buffer length
 				&bytesRead,         // bytes received
 				NULL                // LPOVERLAPPED
-			);
+				);
 
 			if (NO_ERROR == result)
 			{
@@ -266,17 +234,25 @@ namespace CSoftHttp
 				switch (pRequest->Verb)
 				{
 				case HttpVerbGET:
-					TraceRequest(pRequest);
+					wprintf(L"\nGot a GET request for %ws, from IP address %ws, request headers:%ws"
+						, pRequest->CookedUrl.pFullUrl
+						, GetIpAddress(pRequest->Address.pRemoteAddress)
+						, GetRequestHeader(pRequest));
 					result = SendHttpResponse( pRequest, 200, PSTR("OK"), PSTR("Hey! You hit the server \r\n") );
 					break;
 
 				case HttpVerbPOST:
-					TraceRequest(pRequest);
+					wprintf(L"\nGot a POST request for %ws, from IP address %ws, request headers:%ws"
+						, pRequest->CookedUrl.pFullUrl
+						, GetIpAddress(pRequest->Address.pRemoteAddress)
+						, GetRequestHeader(pRequest));
+
 					result = SendHttpPostResponse(pRequest);
 					break;
 
 				default:
-					TraceRequest(pRequest);
+					wprintf(L"Got a unknown request for %ws \n", pRequest->CookedUrl.pFullUrl);
+
 					result = SendHttpResponse(pRequest, 503, PSTR("Not Implemented"), NULL );
 					break;
 				}
@@ -347,7 +323,7 @@ namespace CSoftHttp
 		IN USHORT        StatusCode,
 		IN PSTR          pReason,
 		IN PSTR          pEntityString
-	)
+		)
 	{
 		HTTP_RESPONSE   response;
 		HTTP_DATA_CHUNK dataChunk;
@@ -356,12 +332,10 @@ namespace CSoftHttp
 
 		//
 		// Initialize the HTTP response structure.
-		//
 		INITIALIZE_HTTP_RESPONSE(&response, StatusCode, pReason);
 
 		//
 		// Add a known header.
-		//
 		ADD_KNOWN_HEADER(response, HttpHeaderContentType, "text/html");
 
 		if (pEntityString)
@@ -392,7 +366,7 @@ namespace CSoftHttp
 			0,                   // Reserved3   (must be 0)
 			NULL,                // LPOVERLAPPED(OPTIONAL)
 			NULL                 // pReserved4  (must be NULL)
-		);
+			);
 
 		if (result != NO_ERROR)
 		{
@@ -472,12 +446,12 @@ namespace CSoftHttp
 
 			hTempFile = CreateFile(szTempName,
 				GENERIC_READ | GENERIC_WRITE,
-				0,                  // Do not share.
+				0,					// Do not share.
 				NULL,               // No security descriptor.
 				CREATE_ALWAYS,      // Overwrite existing.
 				FILE_ATTRIBUTE_NORMAL,    // Normal file.
 				NULL
-			);
+				);
 
 			if (hTempFile == INVALID_HANDLE_VALUE)
 			{
@@ -500,7 +474,7 @@ namespace CSoftHttp
 					EntityBufferLength,
 					&BytesRead,
 					NULL
-				);
+					);
 
 				switch (result)
 				{
@@ -554,16 +528,16 @@ namespace CSoftHttp
 
 					result =
 						HttpSendHttpResponse(
-							m_hReqQueue,           // ReqQueueHandle
-							pRequest->RequestId, // Request ID
-							HTTP_SEND_RESPONSE_FLAG_MORE_DATA,
-							&response,       // HTTP response
-							NULL,            // pReserved1
-							&bytesSent,      // bytes sent-optional
-							NULL,            // pReserved2
-							0,               // Reserved3
-							NULL,            // LPOVERLAPPED
-							NULL             // pReserved4
+						m_hReqQueue,           // ReqQueueHandle
+						pRequest->RequestId, // Request ID
+						HTTP_SEND_RESPONSE_FLAG_MORE_DATA,
+						&response,       // HTTP response
+						NULL,            // pReserved1
+						&bytesSent,      // bytes sent-optional
+						NULL,            // pReserved2
+						0,               // Reserved3
+						NULL,            // LPOVERLAPPED
+						NULL             // pReserved4
 						);
 
 					if (result != NO_ERROR)
@@ -594,7 +568,7 @@ namespace CSoftHttp
 						0,
 						NULL,
 						NULL
-					);
+						);
 
 					if (result != NO_ERROR)
 					{
@@ -625,7 +599,7 @@ namespace CSoftHttp
 				0,                   // Reserved3
 				NULL,                // LPOVERLAPPED
 				NULL                 // pReserved4
-			);
+				);
 
 			if (result != NO_ERROR)
 			{

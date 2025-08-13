@@ -1,7 +1,8 @@
 #pragma once
+
 #include "Http.h"
 
-namespace CSoftHttp
+namespace HttpCore
 {
 	///////////////////////////////////////////////////////////////////////////////////////////
 	// class CHttpBasicServer
@@ -9,11 +10,13 @@ namespace CSoftHttp
 	{
 	public:
 		CHttpBasicServer(CString strIPAddress, int nPort);
+		virtual ~CHttpBasicServer(void);
 
 	public:
 		bool Init();
 		bool CleanUp();
 
+	public:
 		bool Run();
 
 	protected:
@@ -27,24 +30,20 @@ namespace CSoftHttp
 		/// <param name="pReason"></param>
 		/// <param name="pEntityString"></param>
 		/// <returns></returns>
-		DWORD SendHttpResponse(
-			IN PHTTP_REQUEST pRequest,
+		DWORD SendHttpResponse( IN PHTTP_REQUEST pRequest,
 			IN USHORT        StatusCode,
 			IN PSTR          pReason,
 			IN PSTR          pEntityString
-		);
+			);
 
 		/// <summary>
 		/// Sends a HTTP response after reading the entity body.
 		/// </summary>
 		/// <param name="pRequest"></param>
 		/// <returns></returns>
-		DWORD SendHttpPostResponse(
-			IN PHTTP_REQUEST pRequest
-		);
-
+		DWORD SendHttpPostResponse( IN PHTTP_REQUEST pRequest );
 	private:
-		CStringW GetURI();
+		CStringW GetFullyQualifiedURL();
 
 	private:
 		CString m_strIPAddress;
@@ -53,5 +52,4 @@ namespace CSoftHttp
 		HANDLE  m_hReqQueue;
 		bool 	m_bUrlAdded;
 	};
-};
-
+}
