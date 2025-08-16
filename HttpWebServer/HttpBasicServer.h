@@ -44,7 +44,7 @@ namespace CSoftHttp
 		);
 
 	private:
-		CStringW GetURI();
+		CStringW GetFullyQualifiedURI() const;
 
 	private:
 		CString m_strIPAddress;

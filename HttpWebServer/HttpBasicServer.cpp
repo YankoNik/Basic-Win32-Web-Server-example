@@ -29,7 +29,7 @@ extern bool g_bTraceRequest = true;
 
 
 ///////////////////////////////////////////////////////////
-CStringW GetIpAddress(const PSOCKADDR pSocketIPAddress)
+static CStringW GetIpAddress(const PSOCKADDR pSocketIPAddress)
 {
 	if (!pSocketIPAddress)
 		return CStringW("");
@@ -48,7 +48,7 @@ CStringW GetIpAddress(const PSOCKADDR pSocketIPAddress)
 	return strIP;
 }
 
-CStringW GetRequestHeader(const PHTTP_REQUEST pHttpRequest)
+static CStringW GetRequestHeader(const PHTTP_REQUEST pHttpRequest)
 {
 	if (!pHttpRequest)
 		return CStringW("");
@@ -66,7 +66,7 @@ CStringW GetRequestHeader(const PHTTP_REQUEST pHttpRequest)
 	return strResult;
 }
 
-void TraceRequest(const PHTTP_REQUEST pHttpRequest)
+static void TraceRequest(const PHTTP_REQUEST pHttpRequest)
 {
 	if (!g_bTraceRequest)
 		return;
@@ -133,7 +133,7 @@ namespace CSoftHttp
 			CleanUp();
 		}
 
-		CStringW strUriPort = GetURI();
+		CStringW strUriPort = GetFullyQualifiedURI();
 		//
 		// The command line arguments represent URIs that to 
 		// listen on. Call HttpAddUrl for each URI.
@@ -178,7 +178,7 @@ namespace CSoftHttp
 
 	bool CHttpBasicServer::CleanUp()
 	{
-		CStringW strUri = GetURI();
+		CStringW strUri = GetFullyQualifiedURI();
 
 		//
 		// Call HttpRemoveUrl for all added URLs.
@@ -201,7 +201,7 @@ namespace CSoftHttp
 		return true;
 	}
 
-	CStringW CHttpBasicServer::GetURI()
+	CStringW CHttpBasicServer::GetFullyQualifiedURI() const
 	{
 		CStringW strIP = m_strIPAddress;
 

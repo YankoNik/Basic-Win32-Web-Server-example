@@ -24,7 +24,7 @@
     <ClInclude Include="Resource.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Project Management System.h">
+    <ClInclude Include="HttpWebServer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="pch.h">
@@ -35,7 +35,7 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Project Management System.cpp">
+    <ClCompile Include="HttpWebServer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="pch.cpp">
@@ -46,7 +46,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="Project Management System.rc">
+    <ResourceCompile Include="HttpWebServer.rc">
       <Filter>Resource Files</Filter>
     </ResourceCompile>
   </ItemGroup>

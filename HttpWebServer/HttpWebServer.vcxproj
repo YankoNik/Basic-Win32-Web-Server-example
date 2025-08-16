@@ -141,7 +141,7 @@
   <ItemGroup>
     <ClInclude Include="framework.h" />
     <ClInclude Include="pch.h" />
-    <ClInclude Include="Project Management System.h" />
+    <ClInclude Include="HttpWebServer.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="HttpBasicServer.h" />
@@ -153,11 +153,11 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="Project Management System.cpp" />
+    <ClCompile Include="HttpWebServer.cpp" />
     <ClCompile Include="HttpBasicServer.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="Project Management System.rc" />
+    <ResourceCompile Include="HttpWebServer.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
