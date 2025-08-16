@@ -3,6 +3,11 @@
 
 #pragma comment(lib, "Httpapi.lib")
 
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+// {6DD0FE89-728D-4AFF-BC4E-5CB8C1FE5482}
+static const GUID glb_MyAppId = { 0x6dd0fe89, 0x728d, 0x4aff, { 0xbc, 0x4e, 0x5c, 0xb8, 0xc1, 0xfe, 0x54, 0x82 } };
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 #define INITIALIZE_HTTP_RESPONSE( resp, status, reason )    \
     do                                                      \
@@ -29,7 +34,7 @@ extern bool g_bTraceRequest = true;
 
 
 ///////////////////////////////////////////////////////////
-CStringW GetIpAddress(const PSOCKADDR pSocketIPAddress)
+static CStringW GetIpAddress(const PSOCKADDR pSocketIPAddress)
 {
 	if (!pSocketIPAddress)
 		return CStringW("");
@@ -48,7 +53,7 @@ CStringW GetIpAddress(const PSOCKADDR pSocketIPAddress)
 	return strIP;
 }
 
-CStringW GetRequestHeader(const PHTTP_REQUEST pHttpRequest)
+static CStringW GetRequestHeader(const PHTTP_REQUEST pHttpRequest)
 {
 	if (!pHttpRequest)
 		return CStringW("");
@@ -66,7 +71,7 @@ CStringW GetRequestHeader(const PHTTP_REQUEST pHttpRequest)
 	return strResult;
 }
 
-void TraceRequest(const PHTTP_REQUEST pHttpRequest)
+static void TraceRequest(const PHTTP_REQUEST pHttpRequest)
 {
 	if (!g_bTraceRequest)
 		return;
@@ -87,31 +92,41 @@ void TraceRequest(const PHTTP_REQUEST pHttpRequest)
 		, (LPCWSTR)GetRequestHeader(pHttpRequest));
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+#define _DF_HTTPS_ _T("https:")
+#define _DF_EXIST_  "/api/exit"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 namespace CSoftHttp
 {
 	///////////////////////////////////////////////////////////////////////////////////////////
 	// class CHttpBasicServer
-	CHttpBasicServer::CHttpBasicServer(CString strIPAddress, int nPort)
+	CHttpBasicServer::CHttpBasicServer(CString strIPAddress, int nPort, LPCSTR lpszCertThumbPrint /*= NULL*/)
 		: m_strIPAddress(strIPAddress)
 		, m_nPort(nPort)
 		, m_hReqQueue(NULL)
 		, m_bUrlAdded(false)
+		, m_strCertThumbPrint(lpszCertThumbPrint)
+		, m_bServerSslCertInit(false)
+		, m_pHttpServiceConfigSsl(NULL)
 	{
+		memset(m_arrCertHash, 0, _countof(m_arrCertHash));
+	}
+
+	CHttpBasicServer::~CHttpBasicServer()
+	{
+		CleanUp();
 	}
 
 	bool CHttpBasicServer::Init()
 	{
-		HTTPAPI_VERSION HttpApiVersion = HTTPAPI_VERSION_1;
+		if (!m_strIPAddress.Left(6).CompareNoCase(_DF_HTTPS_) && !InitializeSsl())
+		{
+			return 1;
+		}
 
-		//
 		// Initialize HTTP Server APIs
-		//
-		int retCode = HttpInitialize(HttpApiVersion, 
-			HTTP_INITIALIZE_SERVER,    // Flags
-			NULL                       // Reserved
-		);
+		int retCode = HttpInitialize(HTTPAPI_VERSION_2, HTTP_INITIALIZE_SERVER, NULL);
 
 		if (retCode != NO_ERROR)
 		{
@@ -121,11 +136,7 @@ namespace CSoftHttp
 
 		//
 		// Create a Request Queue Handle
-		//
-		retCode = HttpCreateHttpHandle(
-			&m_hReqQueue,      // Req Queue
-			0                  // Reserved
-		);
+		retCode = HttpCreateHttpHandle(&m_hReqQueue, 0);
 
 		if (retCode != NO_ERROR)
 		{
@@ -133,7 +144,7 @@ namespace CSoftHttp
 			CleanUp();
 		}
 
-		CStringW strUriPort = GetURI();
+		CStringW strUriPort = GetFullyQualifiedURI();
 		//
 		// The command line arguments represent URIs that to 
 		// listen on. Call HttpAddUrl for each URI.
@@ -178,13 +189,18 @@ namespace CSoftHttp
 
 	bool CHttpBasicServer::CleanUp()
 	{
-		CStringW strUri = GetURI();
+		CStringW strUri = GetFullyQualifiedURI();
 
 		//
 		// Call HttpRemoveUrl for all added URLs.
 		if (m_bUrlAdded)
 		{
 			HttpRemoveUrl(m_hReqQueue, strUri);
+		}
+
+		if (m_bServerSslCertInit)
+		{
+			ReleaseSsl();
 		}
 
 		//
@@ -201,16 +217,101 @@ namespace CSoftHttp
 		return true;
 	}
 
-	CStringW CHttpBasicServer::GetURI()
+	CStringW CHttpBasicServer::GetFullyQualifiedURI() const
 	{
-		CStringW strIP = m_strIPAddress;
+		CStringW strUriPort, strIP = m_strIPAddress;
 
-		CStringW strUriPort = L"http://";
-		strUriPort.AppendFormat(L"%s:", (LPCWSTR)strIP);
-		strUriPort.AppendFormat(L"%d" , m_nPort);
+		const CString strHttp = _T("http");
+		if (m_strIPAddress.Left(strHttp.GetLength()).CompareNoCase(strHttp) != 0)
+			strUriPort = L"http://";
 
-		strUriPort += L"/";
+		strUriPort.AppendFormat(L"%s:%d", (LPCWSTR)strIP, m_nPort);
+
+		strUriPort += L"/api/";
+
 		return strUriPort;
+	}
+
+	bool CHttpBasicServer::InitializeSsl()
+	{
+		HTTPAPI_VERSION HttpApiVersion = HTTPAPI_VERSION_2;
+		int retCode = HttpInitialize(HttpApiVersion, HTTP_INITIALIZE_CONFIG, NULL);
+
+		if (retCode != NO_ERROR)
+		{
+			wprintf(L"HttpInitialize failed with %lu \n", retCode);
+			return false;
+		}
+
+		m_pHttpServiceConfigSsl = new HTTP_SERVICE_CONFIG_SSL_SET{ 0 };
+
+		m_oSockAddrIn = { 0 };
+		m_oSockAddrIn.sin_family = AF_INET;
+		m_oSockAddrIn.sin_addr.s_addr = htonl(INADDR_ANY); // Listen on all IPs
+		m_oSockAddrIn.sin_port = htons(m_nPort); // Convert port to network byte order
+
+		// Convert hex string to binary hash (20 bytes for SHA-1)
+		const char* hexHash = (LPCSTR)m_strCertThumbPrint.GetBuffer();
+		for (int i = 0; i < _DF_CERT_HASH_LEN_; ++i) {
+			sscanf_s(hexHash + 2 * i, "%2hhx", &m_arrCertHash[i]);
+		}
+
+		m_pHttpServiceConfigSsl->KeyDesc.pIpPort					= (PSOCKADDR)&m_oSockAddrIn;
+		m_pHttpServiceConfigSsl->ParamDesc.pSslHash					= (PVOID)m_arrCertHash;
+		m_pHttpServiceConfigSsl->ParamDesc.SslHashLength			= _DF_CERT_HASH_LEN_;
+		m_pHttpServiceConfigSsl->ParamDesc.AppId					= glb_MyAppId;
+		m_pHttpServiceConfigSsl->ParamDesc.pSslCertStoreName		= (PWSTR)L"MY";
+
+		m_pHttpServiceConfigSsl->ParamDesc.DefaultFlags				= HTTP_SERVICE_CONFIG_SSL_FLAG_NEGOTIATE_CLIENT_CERT;
+		m_pHttpServiceConfigSsl->ParamDesc.DefaultCertCheckMode		= 0;
+		m_pHttpServiceConfigSsl->ParamDesc.pDefaultSslCtlStoreName	= NULL;
+		m_pHttpServiceConfigSsl->ParamDesc.pDefaultSslCtlIdentifier = NULL;
+		m_pHttpServiceConfigSsl->ParamDesc.DefaultRevocationFreshnessTime = 0;
+		m_pHttpServiceConfigSsl->ParamDesc.DefaultRevocationUrlRetrievalTimeout = 0;
+
+		retCode = HttpSetServiceConfiguration(NULL
+			, HttpServiceConfigSSLCertInfo
+			, (PVOID)m_pHttpServiceConfigSsl
+			, sizeof(HTTP_SERVICE_CONFIG_SSL_SET), NULL);
+		
+		//if (retCode == ERROR_NO_SUCH_LOGON_SESSION || retCode == ERROR_INVALID_PARAMETER || retCode == ERROR_ALREADY_EXISTS)
+		//	return false;
+		if (retCode == ERROR_ALREADY_EXISTS)
+		{
+			m_bServerSslCertInit = true;
+			ReleaseSsl();
+			return false;
+		}
+
+		if (retCode != NO_ERROR )
+		{
+			wprintf(L"HttpSetServiceConfiguration failed with %lu \n", retCode);
+			return false;
+		}
+
+		m_bServerSslCertInit = true;
+		return true;
+	}
+
+	bool CHttpBasicServer::ReleaseSsl()
+	{
+		if (!m_bServerSslCertInit || !m_pHttpServiceConfigSsl)
+			return true;
+
+		long retCode = HttpDeleteServiceConfiguration(NULL
+			, HttpServiceConfigSSLCertInfo
+			, (PVOID)m_pHttpServiceConfigSsl
+			, sizeof(HTTP_SERVICE_CONFIG_SSL_SET), NULL);
+
+		delete m_pHttpServiceConfigSsl; m_pHttpServiceConfigSsl = NULL;
+
+		if (retCode != NO_ERROR)
+		{
+			wprintf(L"HttpDeleteServiceConfiguration failed with %lu \n", retCode);
+			return false;
+		}
+
+		return true;
 	}
 
 	DWORD CHttpBasicServer::DoReceiveRequests()
@@ -281,7 +382,14 @@ namespace CSoftHttp
 					break;
 				}
 
+
 				if (result != NO_ERROR)
+				{
+					break;
+				}
+
+				CStringA strRawUrl = CStringA(pRequest->pRawUrl).MakeLower();
+				if (!strRawUrl.CollateNoCase(_DF_EXIST_))
 				{
 					break;
 				}

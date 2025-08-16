@@ -1,9 +1,6 @@
-﻿// Project Management System.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
-
-#include "pch.h"
+﻿#include "pch.h"
 #include "framework.h"
-#include "Project Management System.h"
+#include "MainWebSrv.h"
 
 #include <fcntl.h>     
 #include <io.h>        
@@ -19,24 +16,16 @@ CWinApp theApp;
 
 using namespace std;
 
-// <summary>
-/// Главна функция на програмата.
-/// Извиква примерни демонстрационни функции,
-/// инициализира MFC и връща статус код.
+/// <summary>
 /// </summary>
 int main()
 {
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleCP(CP_UTF8);
-    //_setmode(_fileno(stdout), _O_U8TEXT);
-
     int nRetCode = 0;
 
     HMODULE hModule = ::GetModuleHandle(nullptr);
 
 	if (hModule != nullptr)
     {
-       
         if (!AfxWinInit(hModule, nullptr, ::GetCommandLine(), 0))
         {
            
@@ -45,7 +34,7 @@ int main()
         }
         else
         {
-            CSoftHttp::CHttpBasicServer oBasicHttpServer(_T("127.0.0.1"), 49180);
+            CSoftHttp::CHttpBasicServer oBasicHttpServer(_T("https://localhost"), 49180, "66cda0318f6241890859fe229f651f326dd0e246");
             if (!oBasicHttpServer.Init())
             {
                 wprintf(L"Fatal Error: initialization CHttpBasicServer\n");
