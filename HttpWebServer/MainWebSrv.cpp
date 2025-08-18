@@ -1,10 +1,6 @@
 ﻿#include "pch.h"
 #include "framework.h"
-<<<<<<<< HEAD:HttpWebServer/MainWebSrv.cpp
 #include "MainWebSrv.h"
-========
-#include "HttpWebServer.h"
->>>>>>>> 4aff00d34bf3e906b2cce53c9f161e5d93f9eed8:HttpWebServer/HttpWebServer.cpp
 
 #include <fcntl.h>     
 #include <io.h>        

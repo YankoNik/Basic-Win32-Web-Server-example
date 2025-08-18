@@ -45,15 +45,12 @@ namespace CSoftHttp
 
 	private:
 		CStringW GetFullyQualifiedURI() const;
-<<<<<<< HEAD
 
 		bool InitializeSsl();
 
 		bool ReleaseSsl();
 
 		bool CleanUp();
-=======
->>>>>>> 4aff00d34bf3e906b2cce53c9f161e5d93f9eed8
 
 	private:
 		CString		m_strIPAddress;
