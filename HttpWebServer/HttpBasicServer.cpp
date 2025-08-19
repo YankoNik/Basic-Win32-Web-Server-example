@@ -93,11 +93,12 @@ static void TraceRequest(const PHTTP_REQUEST pHttpRequest)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-#define _DF_HTTPS_ _T("https:")
-#define _DF_EXIST_  "/api/exit"
+#define _DF_HTTPS_		_T("https:")
+#define _DF_CMD_EXIST_  "/api/exit"
+#define _DF_CMD_INFO_	"/api/info"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-namespace CSoftHttp
+namespace HttpCore
 {
 	///////////////////////////////////////////////////////////////////////////////////////////
 	// class CHttpBasicServer
@@ -110,6 +111,7 @@ namespace CSoftHttp
 		, m_bServerSslCertInit(false)
 		, m_pHttpServiceConfigSsl(NULL)
 	{
+		memset(&m_oSockAddrIn, 0, sizeof(m_oSockAddrIn));
 		memset(m_arrCertHash, 0, _countof(m_arrCertHash));
 	}
 
@@ -234,6 +236,13 @@ namespace CSoftHttp
 
 	bool CHttpBasicServer::InitializeSsl()
 	{
+		const int lenghtCertThumbPrin = m_strCertThumbPrint.GetLength();
+		if (lenghtCertThumbPrin != _DF_CERT_HASH_LEN_ * 2)
+		{
+			wprintf(L"Incorrect cert thumbprint length %d\n", m_strCertThumbPrint.GetLength());
+			return false;
+		}
+
 		HTTPAPI_VERSION HttpApiVersion = HTTPAPI_VERSION_2;
 		int retCode = HttpInitialize(HttpApiVersion, HTTP_INITIALIZE_CONFIG, NULL);
 
@@ -389,7 +398,7 @@ namespace CSoftHttp
 				}
 
 				CStringA strRawUrl = CStringA(pRequest->pRawUrl).MakeLower();
-				if (!strRawUrl.CollateNoCase(_DF_EXIST_))
+				if (!strRawUrl.CollateNoCase(_DF_CMD_EXIST_))
 				{
 					break;
 				}
