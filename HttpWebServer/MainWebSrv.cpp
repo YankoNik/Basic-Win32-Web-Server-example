@@ -34,7 +34,7 @@ int main()
         }
         else
         {
-            CSoftHttp::CHttpBasicServer oBasicHttpServer(_T("https://localhost"), 49180, "66cda0318f6241890859fe229f651f326dd0e246");
+            HttpCore::CHttpBasicServer oBasicHttpServer(_T("https://localhost"), 49180, "66cda0318f6241890859fe229f651f326dd0e246");
             if (!oBasicHttpServer.Init())
             {
                 wprintf(L"Fatal Error: initialization CHttpBasicServer\n");
@@ -42,7 +42,7 @@ int main()
 
             if (!oBasicHttpServer.Run())
             {
-                wprintf(L"Fatal Error: Runing CHttpBasicServer\n");
+                wprintf(L"Fatal Error: Running CHttpBasicServer\n");
             }
         }
     }
